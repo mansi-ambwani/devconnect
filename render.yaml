@@ -1,5 +1,13 @@
-# Render Blueprint: deploys the API (Docker) and the React site on Render's free plan.
-# Database: free hosted PostgreSQL (Aiven) — paste its Service URI as DATABASE_URL when Render asks.
+# Render Blueprint: deploys the database, the API (Docker) and the React site on Render's free plan.
+# Render creates the database and passes its connection string to the API automatically.
+databases:
+  - name: devconnect-db
+    plan: free
+    region: singapore
+    databaseName: devconnect
+    user: devconnect
+    postgresMajorVersion: "16"
+
 services:
   - type: web
     name: devconnect-api
@@ -12,15 +20,17 @@ services:
     autoDeploy: true
     envVars:
       - key: DATABASE_URL
-        sync: false # you paste the Aiven Service URI in the Render dashboard
+        fromDatabase:
+          name: devconnect-db
+          property: connectionString # internal URL, private network
       - key: DB_SSL
-        value: "true"
+        value: "false" # internal Render network; set to "true" if you switch to an external database
       - key: JWT_SECRET
         generateValue: true # Render creates a random secret
       - key: NODE_ENV
         value: production
       - key: CORS_ORIGIN
-        value: "*" # tighten to the website URL after the first deploy
+        value: "*" # tightened to the website URL after the first deploy
 
   - type: web
     name: devconnect-web
