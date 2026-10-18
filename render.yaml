@@ -1,5 +1,5 @@
 # Render Blueprint: deploys the API (Docker) and the React site on Render's free plan.
-# Database: Neon free PostgreSQL — paste its connection string as DATABASE_URL when Render asks.
+# Database: free hosted PostgreSQL (Aiven) — paste its Service URI as DATABASE_URL when Render asks.
 services:
   - type: web
     name: devconnect-api
@@ -12,7 +12,7 @@ services:
     autoDeploy: true
     envVars:
       - key: DATABASE_URL
-        sync: false # you paste the Neon connection string in the Render dashboard
+        sync: false # you paste the Aiven Service URI in the Render dashboard
       - key: DB_SSL
         value: "true"
       - key: JWT_SECRET

@@ -6,9 +6,25 @@ import { config } from '../config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Hosted databases (Aiven, Neon, Azure) put "?sslmode=require" in their connection strings.
+ * node-postgres would treat that as strict certificate checking, which fails on providers that use
+ * their own certificate authority. When DB_SSL=true we remove it and use our own SSL setting instead.
+ */
+function connectionString(url, ssl) {
+  if (!ssl) return url;
+  try {
+    const u = new URL(url);
+    u.searchParams.delete('sslmode');
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 export const pool = new pg.Pool({
-  connectionString: config.databaseUrl,
-  // Azure Database for PostgreSQL requires SSL. Locally (docker-compose) we turn it off.
+  connectionString: connectionString(config.databaseUrl, config.dbSsl),
+  // Hosted databases require SSL. Locally (docker-compose) we turn it off.
   ssl: config.dbSsl ? { rejectUnauthorized: false } : false,
   max: 10,
   idleTimeoutMillis: 30000,
