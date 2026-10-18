@@ -1,0 +1,46 @@
+# Runs the whole app on your computer with one command:
+#   docker compose up --build
+# Then open http://localhost:8080
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: devconnect
+      POSTGRES_PASSWORD: devconnect
+      POSTGRES_DB: devconnect
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devconnect"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgresql://devconnect:devconnect@db:5432/devconnect
+      DB_SSL: "false"
+      JWT_SECRET: local-dev-secret-change-me
+      CORS_ORIGIN: http://localhost:8080,http://localhost:5173
+      NODE_ENV: production
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:4000
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

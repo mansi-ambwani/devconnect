@@ -1,0 +1,95 @@
+# Backend pipeline: test -> build Docker image -> push to GitHub Container Registry -> deploy to Azure Container Apps
+name: Backend CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths: ['backend/**', '.github/workflows/backend.yml']
+  pull_request:
+    paths: ['backend/**']
+  workflow_dispatch: # lets you run it manually from the Actions tab
+
+env:
+  IMAGE_NAME: devconnect-api
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: devconnect
+          POSTGRES_PASSWORD: devconnect
+          POSTGRES_DB: devconnect
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U devconnect" --health-interval 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql://devconnect:devconnect@localhost:5432/devconnect
+      JWT_SECRET: ci-test-secret
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  build-and-deploy:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # needed to push to ghcr.io
+    env:
+      HAS_AZURE: ${{ secrets.AZURE_CREDENTIALS != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out image name (must be lowercase)
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_NAME}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+
+      - name: Log in to Azure
+        if: env.HAS_AZURE == 'true'
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy new image to Azure Container Apps
+        if: env.HAS_AZURE == 'true'
+        run: |
+          az extension add --name containerapp --upgrade --only-show-errors
+          az containerapp update \
+            --name "${{ vars.AZURE_CONTAINERAPP_NAME }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --image "${{ env.IMAGE }}:${{ github.sha }}"
+
+      - name: Reminder if Azure deploy was skipped
+        if: env.HAS_AZURE != 'true'
+        run: echo "::notice::Image pushed to ${{ env.IMAGE }}. Azure deploy skipped because the AZURE_CREDENTIALS secret is not set."
