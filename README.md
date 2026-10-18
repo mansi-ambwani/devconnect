@@ -2,10 +2,12 @@
 
 DevConnect is a full-stack web platform where developers create a public portfolio (bio, skills, links) and publish blog posts written in Markdown. Visitors can browse developers, filter by skill, search posts and read them with syntax-highlighted code.
 
-**Stack:** React 18 · HTML5 · CSS3 (Flexbox/Grid) · Node.js/Express · PostgreSQL · Docker · Azure · GitHub Actions
+**Stack:** React 18 · HTML5 · CSS3 (Flexbox/Grid) · Node.js/Express · PostgreSQL · Docker · GitHub Actions · Render (Azure-ready)
 
-> Live demo: `https://<your-app>.azurestaticapps.net` (fill in after deploying)
-> API: `https://<your-api>.azurecontainerapps.io/api/health`
+> **Live site:** https://devconnect-web-1t2f.onrender.com
+> **API health:** https://devconnect-api-b257.onrender.com/api/health
+>
+> Hosted on Render's free plan: the API sleeps after 15 minutes without traffic, so the first request can take up to a minute.
 
 ---
 
@@ -28,7 +30,9 @@ DevConnect is a full-stack web platform where developers create a public portfol
 
 **DevOps**
 - Dockerfiles for API and web, `docker-compose` for one-command local setup
-- GitHub Actions pipelines: test → build Docker image → push to GitHub Container Registry → deploy to Azure Container Apps; React build → deploy to Azure Static Web Apps
+- GitHub Actions pipelines: run the API test suite against PostgreSQL, build the React app, build the Docker image and push it to GitHub Container Registry
+- Render Blueprint (`render.yaml`): one-click infrastructure for the Docker API, static site and PostgreSQL, auto-deployed on every push
+- Azure deployment also supported (Container Apps + Static Web Apps + PostgreSQL Flexible Server) via the same workflows; see SETUP_GUIDE.md
 
 ---
 
@@ -36,12 +40,12 @@ DevConnect is a full-stack web platform where developers create a public portfol
 
 ```mermaid
 flowchart LR
-  U[Browser] -->|HTTPS| SWA[Azure Static Web Apps<br/>React build]
-  U -->|REST /api/*, JWT| ACA[Azure Container Apps<br/>Express API in Docker]
-  ACA -->|SSL| PG[(Azure Database for<br/>PostgreSQL Flexible Server)]
-  GH[GitHub repo] -->|Actions| GHCR[GitHub Container Registry]
-  GHCR -->|image| ACA
-  GH -->|Actions| SWA
+  U[Browser] -->|HTTPS| WEB[Render Static Site<br/>React build]
+  U -->|REST /api/*, JWT| API[Render Web Service<br/>Express API in Docker]
+  API -->|private network| PG[(Render PostgreSQL 16)]
+  GH[GitHub repo] -->|push| WEB
+  GH -->|push| API
+  GH -->|Actions: tests + Docker build| GHCR[GitHub Container Registry]
 ```
 
 ## Database schema
@@ -134,12 +138,15 @@ For development with hot reload and how to run the tests, see [SETUP_GUIDE.md](S
 
 ## Deployment
 
-Full beginner walkthrough with every account and credential: **[SETUP_GUIDE.md](SETUP_GUIDE.md)**. Summary:
+**Live deployment (Render, free plan)** — defined in [`render.yaml`](render.yaml):
 
-| Part | Azure service | Plan used |
+| Part | Service | URL |
 | --- | --- | --- |
-| React frontend | Azure Static Web Apps | Free |
-| API (Docker) | Azure Container Apps | Consumption, monthly free grant, scales to zero |
-| Database | Azure Database for PostgreSQL Flexible Server | B1ms, free 750 h/month for 12 months |
-| Image registry | GitHub Container Registry | Free for public images |
-| CI/CD | GitHub Actions | Free |
+| React frontend | Render Static Site | https://devconnect-web-1t2f.onrender.com |
+| API (Docker) | Render Web Service, Singapore | https://devconnect-api-b257.onrender.com |
+| Database | Render PostgreSQL 16, Singapore | private network only |
+| CI | GitHub Actions | tests, build, Docker image to GHCR |
+
+Every push to `main` redeploys automatically. Render's free database expires 30 days after creation; to keep data longer, point `DATABASE_URL` at another PostgreSQL host (for example Aiven or Neon) and set `DB_SSL=true`.
+
+**Azure deployment** (Static Web Apps + Container Apps + PostgreSQL Flexible Server) is also supported by the included workflows. Full beginner walkthrough with every account and credential: **[SETUP_GUIDE.md](SETUP_GUIDE.md)**.

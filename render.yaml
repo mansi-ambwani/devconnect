@@ -30,7 +30,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: CORS_ORIGIN
-        value: "*" # tightened to the website URL after the first deploy
+        value: https://devconnect-web-1t2f.onrender.com
 
   - type: web
     name: devconnect-web
@@ -45,4 +45,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        value: https://devconnect-api.onrender.com # updated after the API's real URL is known
+        value: https://devconnect-api-b257.onrender.com
